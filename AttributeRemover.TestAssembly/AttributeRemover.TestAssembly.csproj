@@ -18,32 +18,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
-  <UsingTask TaskName="AttributeRemover"
-             TaskFactory="CodeTaskFactory"
-             AssemblyFile="$(MSBuildBinPath)\Microsoft.Build.Tasks.Core.dll">
-    <ParameterGroup>
-      <AssemblyFilePath ParameterType="System.String" Required="true" />
-    </ParameterGroup>
-    <Task>
-      <Reference Include="$(SolutionDir)3rdParty\Mono.Cecil\lib\net40\Mono.Cecil.dll"/>
-      <Using Namespace="System" />
-      <Using Namespace="System.Linq" />
-      <Using Namespace="Mono.Cecil" />
-      <Code Type="Fragment" Language="C#">
-        <![CDATA[
-            Log.LogMessage(MessageImportance.High, "Removing InternalVisibleTo attributes from {0}", AssemblyFilePath);
-            var assembly = AssemblyDefinition.ReadAssembly(AssemblyFilePath,
-                new ReaderParameters { ReadingMode = ReadingMode.Immediate, ReadWrite = true, InMemory = true });
-            var attributesToRemove = assembly.CustomAttributes
-                .Where(ca => ca.AttributeType.FullName == "System.Runtime.CompilerServices.InternalsVisibleToAttribute")
-                .ToArray();
-            foreach (var attr in attributesToRemove)
-                assembly.CustomAttributes.Remove(attr);
-            assembly.Write();
-            ]]>
-      </Code>
-    </Task>
-  </UsingTask>
   <!-- Do a self publish -->
   <PropertyGroup Label="Self Publish properties" Condition="$(TargetFramework) != ''">
     <PublishProtocol>FileSystem</PublishProtocol>
@@ -56,8 +30,9 @@
   </Target>
 
   <!-- Remove the InternalsVisibleTo attributes from our published output -->
+  <Import Project="$(SolutionDir)RemoveInternalsVisibleTo.target" />
   <Target Name="AttributeRemover" AfterTargets="SelfPublish" Condition="$(TargetFramework) != '' AND $(DesignTimeBuild) != true AND $(BuildingProject) == true">
-    <AttributeRemover AssemblyFilePath="$(PublishDir)\AttributeRemover.TestAssembly.dll" />
+    <RemoveInternalsVisibleTo AssemblyFilePath="$(PublishDir)AttributeRemover.TestAssembly.dll" />
   </Target>
 
   <ItemGroup>

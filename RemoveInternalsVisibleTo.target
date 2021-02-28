@@ -1,0 +1,28 @@
+<Project>
+  <UsingTask TaskName="RemoveInternalsVisibleTo"
+             TaskFactory="CodeTaskFactory"
+             AssemblyFile="$(MSBuildBinPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <AssemblyFilePath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Reference Include="$(SolutionDir)3rdParty/Mono.Cecil/lib/net40/Mono.Cecil.dll"/>
+      <Using Namespace="System" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="Mono.Cecil" />
+      <Code Type="Fragment" Language="C#">
+        <![CDATA[
+            Log.LogMessage(MessageImportance.High, "Removing InternalVisibleTo attributes from {0}", AssemblyFilePath);
+            var assembly = AssemblyDefinition.ReadAssembly(AssemblyFilePath,
+                new ReaderParameters { ReadingMode = ReadingMode.Immediate, ReadWrite = true, InMemory = true });
+            var attributesToRemove = assembly.CustomAttributes
+                .Where(ca => ca.AttributeType.FullName == "System.Runtime.CompilerServices.InternalsVisibleToAttribute")
+                .ToArray();
+            foreach (var attr in attributesToRemove)
+                assembly.CustomAttributes.Remove(attr);
+            assembly.Write();
+            ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+</Project>
