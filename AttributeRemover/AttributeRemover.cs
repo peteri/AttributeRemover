@@ -7,13 +7,15 @@ namespace AttributeRemover
     using System;
     using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Text;
     using Microsoft.Build.Framework;
+    using Mono.Cecil;
 
     /// <summary>
     /// Removes InternalVisibleTo attributes from a net assembly.
     /// </summary>
-    public class AttributeRemover : Microsoft.Build.Utilities.Task, IDisposable
+    public class AttributeRemover : Microsoft.Build.Utilities.Task
     {
         /// <summary>
         /// Gets or Sets list of assemblies that will have attributes removed.
@@ -25,14 +27,7 @@ namespace AttributeRemover
         /// Gets or Sets list of attributes remove.
         /// </summary>
         [Required]
-        public virtual ITaskItem[] Attributes { get; set; } = new ITaskItem[0];
-
-        /// <summary>
-        /// Don't have anything to kill.
-        /// </summary>
-        public void Dispose()
-        {
-        }
+        public virtual string Attributes { get; set; }
 
         /// <summary>
         /// Actually does the work.
@@ -40,6 +35,9 @@ namespace AttributeRemover
         /// <returns>true, if successful.</returns>
         public override bool Execute()
         {
+            string[] attributes = Attributes.Split(new[] { ',' });
+            Log.LogMessage(MessageImportance.High, "Attributes to remove '{0}'", string.Join(";", attributes));
+
             for (int i = 0; i < InputAssemblies.Length; i++)
             {
                 try
@@ -50,12 +48,14 @@ namespace AttributeRemover
                         throw new Exception($"Invalid assembly path on item index {i}");
                     }
 
-                    if (!File.Exists(assemblyPath) && !File.Exists(BuildPath(assemblyPath)))
+                    if (!File.Exists(assemblyPath))
                     {
                         throw new Exception($"Unable to resolve assembly '{assemblyPath}'");
                     }
 
-                    Log.LogMessage(MessageImportance.Normal, "Removing attributes from assembly '{0}'", assemblyPath);
+                    Log.LogMessage(MessageImportance.High, "Removing attributes from assembly '{0}'", assemblyPath);
+
+                    RemoveAttributes(assemblyPath, attributes);
                 }
                 catch (Exception ex)
                 {
@@ -69,15 +69,29 @@ namespace AttributeRemover
             return !Log.HasLoggedErrors;
         }
 
-        /// <summary>
-        /// Returns path respective to current working directory.
-        /// </summary>
-        /// <param name="path">Relative path to current working directory.</param>
-        /// <returns>Returns path.</returns>
-        private string BuildPath(string path)
+        private void RemoveAttributes(string assemblyPath, string[] attributesToRemove)
         {
-            var workDir = Directory.GetCurrentDirectory();
-            return string.IsNullOrEmpty(path) ? null : Path.Combine(workDir, path);
+            List<(string name, bool used)> attr = attributesToRemove.Select(s => (s, false)).ToList();
+
+            var assembly = AssemblyDefinition.ReadAssembly(assemblyPath);
+            if (assembly.HasCustomAttributes)
+            {
+                foreach (var customAttribute in assembly.CustomAttributes)
+                {
+                    if (customAttribute.AttributeType.FullName == "System.Runtime.CompilerServices.InternalsVisibleToAttribute")
+                    {
+                        assembly.CustomAttributes.Remove(customAttribute);
+                    }
+                }
+            }
+
+            string[] unusedAttr = attr.Where(at => at.used == false).Select(at => at.name).ToArray();
+            if (unusedAttr.Any())
+            {
+                Log.LogWarning("Did not remove attributes {0}", string.Join(",", unusedAttr));
+            }
+
+            assembly.Write();
         }
     }
 }

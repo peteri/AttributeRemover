@@ -17,7 +17,10 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
-  
+
+  <UsingTask TaskName="AttributeRemover" AssemblyFile="$(SolutionDir)AttributeRemover\bin\$(Configuration)\netstandard2.0\AttributeRemover.dll" />
+
+  <!-- Do a self publish -->
   <PropertyGroup Label="Self Publish properties" Condition="$(TargetFramework) != ''">
     <PublishProtocol>FileSystem</PublishProtocol>
     <PublishDir>bin\$(Configuration)\publish\$(TargetFramework)\</PublishDir>
@@ -27,7 +30,15 @@
     <Message Text="Self publish of $(RootNamespace)" />
     <CallTarget Targets="Publish"></CallTarget>
   </Target>
-  
+
+  <!-- Remove the InternalsVisibleTo attributes from our published output -->
+  <Target Name="AttributeRemover" AfterTargets="SelfPublish" Condition="$(TargetFramework) != '' AND $(DesignTimeBuild) != true AND $(BuildingProject) == true">
+    <ItemGroup>
+      <InputAssemblies Include="$(PublishDir)\AttributeRemover.TestAssembly.dll" />
+    </ItemGroup>
+    <AttributeRemover InputAssemblies="@(InputAssemblies)" Attributes="System.Runtime.CompilerServices.InternalsVisibleTo,OtherOne" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
       <PrivateAssets>all</PrivateAssets>
